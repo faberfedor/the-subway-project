@@ -1,0 +1,4 @@
+- setup git repo
+- create dict of bounding boxes, or a list of POIs and calculate
+  bounding box
+
