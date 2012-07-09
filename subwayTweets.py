@@ -14,15 +14,25 @@ log.info("Begin")
 username="faberfedor"
 password = "tu_1t!!"
 
+# see https://dev.twitter.com/discussions/6797 about why we have to
+# change our approach.
+# Instead of using 1 unit square bounding boxes around our points of
+# interest (pois), we will gather up the tweets from a larger boundary
+# box, store it, and then filter them after the fact.
+#
+# This means that most of the work I did this weekend is for nought.
+#
+# Stoopid twitter!
+
 #pois = [ { "name": "stamford hill",    "lat": 51.494935, "long": -0.246190 },
 #        { "name": "oxford circus",    "lat": 51.51517 , "long": -0.14119 },
 #        { "name": "charing cross",    "lat": 51.507108, "long": -0.122963 },
 #        { "name": "covent garden",    "lat": 51.51308,  "long":  -0.12427 },
 #        { "name": "trafalgar square", "lat": 51.5081,   "long": 0.1281 }
 #      ]
-pois = [ 
-        { "name": "trafalgar square", "lat": 51.5081,   "long": 0.1281 }
-      ]
+#pois = [ 
+#        { "name": "trafalgar square", "lat": 51.5081,   "long": 0.1281 }
+#      ]
 
 
 # from M3-M25 intersection (near Chertsey) 
@@ -79,6 +89,7 @@ def getCoords( lat, long, bearing, distance, distance_unit="km", returnAsArray =
       coord = { "lat" : str(new_latitude), "long" : str(new_longitude) }  
     
     else :
+      # twitter wants long,lat format
       coord = str(new_longitude) + "," + str(new_latitude);
     
     return coord;
