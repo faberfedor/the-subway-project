@@ -56,6 +56,48 @@ pois = [{ "name": "stamford hill",     "lat": 51.494935, "long": -0.246190 },
 # to M11-M25 intersection (between Loughton and Epping)
 #locations = ["-0.54,51.40",  "0.12,51.67"]
 
+def getCenterOfBB(coords, returnAsArray = False ):
+    ''' pass in coordinates and see which POI is in the bounding box 
+    [[-0.213503, 51.512805], [-0.1053029, 51.512805], [-0.1053029, 51.572068], [-0.213503, 51.572068]]
+          SW corner                SE corner                  NE Corner               NW Corner
+        west       south        east        south        east         north       west      north
+         X           Y           X            Y           X             Y          X          Y
+
+    taken from http://stackoverflow.com/questions/6671183/calculate-the-center-point-of-multiple-latitude-longitude-coordinate-pairs
+
+    '''
+    # premature optimization and all that...
+    swX = math.cos(coords[0][1]) + math.cos(coords[0][0])
+    swY = math.cos(coords[0][1]) + math.sin(coords[0][0])
+    swZ = math.sin(coords[0][1])
+
+    neX = math.cos(coords[2][1]) + math.cos(coords[2][0])
+    neY = math.cos(coords[2][1]) + math.sin(coords[2][0])
+    neZ = math.sin(coords[2][1])
+
+    avgX = (swX + neX) /2
+    avgY = (swrY+ neY) /2
+    acgZ = (swZ + neZ) /2
+
+    ctrLong = math.atan2(avgY, avgX)
+    hyp  = math.sqrt(avgX *avgX + avY * avgY)
+    ctrLat = atan2(avgZ, hyp)
+ 
+    if (returnAsArray) :
+      #  Assign new latitude and longitude to an array to be returned
+      #  to the caller.
+      coord = { "lat" : str(ctrLat), "long" : str(ctrLong) }  
+    
+    else :
+      # twitter wants long,lat format
+      coord = str(ctrLong) + "," + str(ctrLat);
+    
+    return coord;
+    
+    
+
+
+
 def getPOI(coords):
     ''' pass in coordinates and see which POI is in the bounding box 
     [[-0.213503, 51.512805], [-0.1053029, 51.512805], [-0.1053029, 51.572068], [-0.213503, 51.572068]]
