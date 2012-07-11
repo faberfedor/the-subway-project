@@ -19,7 +19,7 @@ password = "tu_1t!!"
 database = './subwayTweets.sqlite'
 connection = sqlite3.connect(database)
 cursor = connection.cursor()
-cursor.execute('create table if not exists tweets (ts integer, swLong real, swLat real, neLong real, neLat real, tweet text)')
+cursor.execute('create table if not exists tweets (ts integer, swLong real, swLat real, neLong real, neLat real, cntrLong real, cntrLat real, tweet text)')
 
 
 # see https://dev.twitter.com/discussions/6797 about why we have to
@@ -65,23 +65,26 @@ def getCenterOfBB(coords, returnAsArray = False ):
 
     taken from http://stackoverflow.com/questions/6671183/calculate-the-center-point-of-multiple-latitude-longitude-coordinate-pairs
 
+    this doesn't work so well...becasue we're crossing the Prime Meridian?  
+    Look into this instead: http://www.geomidpoint.com/calculation.html
+
     '''
     # premature optimization and all that...
-    swX = math.cos(coords[0][1]) + math.cos(coords[0][0])
-    swY = math.cos(coords[0][1]) + math.sin(coords[0][0])
-    swZ = math.sin(coords[0][1])
+    swX = math.cos(math.radians(coords[0][1])) + math.cos(math.radians(coords[0][0]))
+    swY = math.cos(math.radians(coords[0][1])) + math.sin(math.radians(coords[0][0]))
+    swZ = math.sin(math.radians(coords[0][1]))
 
-    neX = math.cos(coords[2][1]) + math.cos(coords[2][0])
-    neY = math.cos(coords[2][1]) + math.sin(coords[2][0])
-    neZ = math.sin(coords[2][1])
+    neX = math.cos(math.radians(coords[2][1])) + math.cos(math.radians(coords[2][0]))
+    neY = math.cos(math.radians(coords[2][1])) + math.sin(math.radians(coords[2][0]))
+    neZ = math.sin(math.radians(coords[2][1]))
 
     avgX = (swX + neX) /2
-    avgY = (swrY+ neY) /2
-    acgZ = (swZ + neZ) /2
+    avgY = (swY + neY) /2
+    avgZ = (swZ + neZ) /2
 
-    ctrLong = math.atan2(avgY, avgX)
-    hyp  = math.sqrt(avgX *avgX + avY * avgY)
-    ctrLat = atan2(avgZ, hyp)
+    ctrLong = math.degrees(math.atan2(avgY, avgX))
+    hyp  = math.sqrt((avgX * avgX) + (avgY * avgY))
+    ctrLat = math.degrees(math.atan2(avgZ, hyp))
  
     if (returnAsArray) :
       #  Assign new latitude and longitude to an array to be returned
@@ -179,10 +182,12 @@ with tweetstream.FilterStream(username, password,
         swLat  = coords[0][1]
         neLong = coords[2][0]
         neLat  = coords[2][1]
+        center =  getCenterOfBB(coords, returnAsArray = True )
 
         text = tweet['text']
         ts = int(time.time())
-        cursor.execute("Insert into tweets values( ?, ?, ?, ?, ?, ?)" , (ts, swLong, swLat, neLong, neLat, text))
+        cursor.execute("Insert into tweets values( ?, ?, ?, ?, ?, ?, ?, ?)" , 
+                                  (ts, swLong, swLat, neLong, neLat, center['long'], center['lat'], text))
         connection.commit()
 
   except Exception, e:
