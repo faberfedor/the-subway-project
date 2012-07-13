@@ -13,7 +13,7 @@ cursor.execute('create table if not exists poiwords (ts integer, poi text, bow t
 
 
 
-def searchTweets(query):
+def getTweets(query):
   search = urllib.urlopen("http://search.twitter.com/search.json?q="+query)
   dict = simplejson.loads(search.read())
   res = ""
@@ -42,10 +42,10 @@ def searchTweets(query):
 pois = open("pointsofinterest.txt").read().split('\n')
 # remove blank line caused by EOL on last line
 pois.pop()
-#stopwords = open("anotherstoplist.txt").read().split(',')
 
 for poi in pois:
-    texts = searchTweets('"'+poi+'"')
+    texts = getTweets('"'+poi+'"')
+    texts = texts.lower().replace(poi, '')
     textsdict = texts.split()
     filteredtexts = [ t for t in textsdict if t.lower() not in stopwords.words("english") ]
     #counts = {}
