@@ -1,22 +1,17 @@
 #!/usr/bin/python
-import os, sys
+import os, sys, urllib
 import twitter
 import nltk
-import json, yaml
+import json, yaml, sqlite3
 import re
 from languageDetection import *
 import logging, logging.config, logging.handlers
 import time
-import pdb
 import argparse
 
 '''
 TODO
-    put exception handling around the twitter search
     add logging
-    add debug mode
-    write term to database
-    implement CLI
 
 '''
 
@@ -26,10 +21,16 @@ log = logging.getLogger('root')
 debug = True
 properties = dict()
 
-regexes = [
+word_regexes = [
     re.compile("[^\w\s]"),
     re.compile(r"\brt\b"),
+    re.compile(r"RT"),
     re.compile("&amp")
+]
+
+phrase_regexes = [
+    re.compile(r"\b[Rr][Tt]\b"),
+    re.compile(r"RT"),
 ]
 
 ld = LangDetect()
@@ -55,6 +56,9 @@ def parseArgs():
     parser.add_argument("--poisfile", nargs='?', 
                         help="file with list of points of interest, one poi per line")
 
+    parser.add_argument("-b", "--database", nargs='?', 
+                        help="write output to sqlite3 database (default: data/terms.sqlite3")
+
     parser.add_argument("-o", "--outfile", nargs='?', 
                         help="write output to file")
 
@@ -79,6 +83,18 @@ def parseArgs():
 
     log.debug("Using args: %s." % (argStr))
     
+def initDB():
+    if properties.has_key("database"):
+        db = properties["database"]
+    else:
+        db = "data/terms.sqlite3"
+
+    connection=sqlite3.connect(db)
+    cursor=connection.cursor()
+    cursor.execute("create table if not exists terms (ts timestamp, poi char(25), top1 char(25), top5 char(50))")
+    connection.commit()
+
+    return [ connection, cursor ]
 
 def getPOIs():
 
@@ -94,33 +110,43 @@ def getPOIs():
 def main(args):
 
     log.info("Begin processing at " + time.asctime(time.localtime()) )
+    ts = time.time()
 
     parseArgs()
+    connection, cursor = initDB()
 
-    twitter_search= twitter.Twitter(domain="search.twitter.com")
+    #twitter_search= twitter.Twitter(domain="search.twitter.com")
+    twitter_search= twitter.Twitter()
    
     pois = getPOIs()
  
     for poi in pois:
         search_results = []
-        
-        twitters=twitter_search.search(q=poi, rpp=100, page=1)
+
+        try:
+            twitters=twitter_search.search(q=poi, geocode="51.500,-0.126,15km", rpp=100, page=1)
+            #twitters=twitter_search.search(q=poi_encoded, geocode="51.500,-0.126,5km", result_type="recent", rpp=100, page=1)
+        except:
+            continue
                 
         for page in range(1,6):
             search_results.append(twitters)
         
         tweets = [ r['text'] for result in search_results for r in result['results'] ]
         en_tweets = [ tweet for tweet in tweets if ld.detect(tweet) == 'en' ]
-
+        # only those tweets that have our pio in them
+        poi_tweets = [tweet for tweet in en_tweets if poi in tweet and
+                      not any(regex.match(tweet) for regex in phrase_regexes)]
+ 
         if properties.has_key("dumpfile"):
             dumpfile = open(properties['dumpfile'], 'a')
             print>>dumpfile, poi, ':'
-            for t in en_tweets:
+            for t in poi_tweets:
                 print>>dumpfile, '    ', t.encode('utf-8')
             
         
         words = []
-        for tweet in en_tweets:
+        for tweet in poi_tweets:
             tw = tweet.lower().replace(poi.lower(), '')
             #t = tw # just until we get the previous line to work
             words += [ w for w in tw.split() ]
@@ -128,13 +154,16 @@ def main(args):
         words_culled = [  w for w in words if w.lower() not in nltk.corpus.stopwords.words('english') ]
         
         freq_dist = nltk.FreqDist(words_culled)
-        top_words = [ w for w in freq_dist.keys() if not any(regex.match(w) for regex in regexes) ]
+        top_words = [ w for w in freq_dist.keys() if not any(regex.match(w) for regex in word_regexes) ]
         print "POI: " + poi
         for k in top_words[:5]:   #freq_dist.keys()[:10]:
-            print "    ",k, freq_dist[k]
+            print "    ",k   #, top_words[:5]  #freq_dist[k]
             if properties.has_key("dumpfile"):
                 dumpfile = open(properties['dumpfile'], 'a')
-                print>>dumpfile, '    ', k.encode('utf-8'), freq_dist[k]
+                print>>dumpfile, '    ', k.encode('utf-8') #, top_words[k] #freq_dist[k]
+
+        cursor.execute("Insert into terms values(?, ?, ?, ?)", (ts, poi, top_words[0], ','.join(top_words[:5])))
+        connection.commit()
     
     log.info("End processing at " + time.asctime(time.localtime()) )
 

@@ -1,4 +1,10 @@
-- setup git repo
-- create dict of bounding boxes, or a list of POIs and calculate
-  bounding box
+- either add to or create a NLTK corpus that Eric will fill up with
+  stopwords like "84 Charing Cross Road". Hmmm, Does the NLTK stopword thingie
+  handle phrases?
 
+- put exception handling around the twitter search
+- add more logging
+- write term to database
+
+- bloom filters?
+  http://stackoverflow.com/questions/5511708/adding-words-to-nltk-stoplist?rq=1
