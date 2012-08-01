@@ -25,7 +25,8 @@ word_regexes = [
     re.compile("[^\w\s]"),
     re.compile(r"\brt\b"),
     re.compile(r"RT"),
-    re.compile("&amp")
+    re.compile("&amp"),
+    re.compile("http:\S+"),
 ]
 
 phrase_regexes = [
@@ -107,15 +108,27 @@ def getPOIs():
 
     return pois
 
+def getStopWords():
+
+    stopset = set(nltk.corpus.stopwords.words('english'))
+
+    f = open("data/stopwords.txt")
+    lines = f.read().splitlines()
+
+    stopset.update(lines)
+
+    return stopset
+
 def main(args):
 
     log.info("Begin processing at " + time.asctime(time.localtime()) )
     ts = time.time()
 
     parseArgs()
+    stopset = getStopWords()
+
     connection, cursor = initDB()
 
-    #twitter_search= twitter.Twitter(domain="search.twitter.com")
     twitter_search= twitter.Twitter()
    
     pois = getPOIs()
@@ -125,7 +138,6 @@ def main(args):
 
         try:
             twitters=twitter_search.search(q=poi, geocode="51.500,-0.126,15km", rpp=100, page=1)
-            #twitters=twitter_search.search(q=poi_encoded, geocode="51.500,-0.126,5km", result_type="recent", rpp=100, page=1)
         except:
             continue
                 
@@ -151,7 +163,8 @@ def main(args):
             #t = tw # just until we get the previous line to work
             words += [ w for w in tw.split() ]
         
-        words_culled = [  w for w in words if w.lower() not in nltk.corpus.stopwords.words('english') ]
+        #words_culled = [  w for w in words if w.lower() not in nltk.corpus.stopwords.words('english') ]
+        words_culled = [  w for w in words if w.lower() not in stopset ]
         
         freq_dist = nltk.FreqDist(words_culled)
         top_words = [ w for w in freq_dist.keys() if not any(regex.match(w) for regex in word_regexes) ]
