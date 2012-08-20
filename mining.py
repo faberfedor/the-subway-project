@@ -7,7 +7,7 @@ import re
 from languageDetection import *
 import logging, logging.config, logging.handlers
 import time
-import argparse
+import argparse, csv
 
 '''
 TODO
@@ -92,10 +92,16 @@ def initDB():
 
     connection=sqlite3.connect(db)
     cursor=connection.cursor()
-    cursor.execute("create table if not exists terms (ts timestamp, poi char(25), top1 char(25), top5 char(50))")
+    cursor.execute("create table if not exists terms (ts timestamp, poi char(25), searchFor char(25), top1 char(25), top5 char(50), numTweets int, duration real, firstTweet char(20), lastTweet char(20))")
     connection.commit()
 
     return [ connection, cursor ]
+
+def readInputCSV():
+
+    csvfile = open('./data/Tube_SearchTerms.csv')
+    records = csv.reader(csvfile)
+    return records
 
 def getPOIs():
 
@@ -131,51 +137,79 @@ def main(args):
 
     twitter_search= twitter.Twitter()
    
-    pois = getPOIs()
+    #pois = getPOIs()
+
+    records = readInputCSV()
  
-    for poi in pois:
+    for rec in records:
         search_results = []
 
+        poi = rec[0]
+        if poi == 'Name of Station' or poi[0] == '#':
+            continue
+        start = time.time()
+
+        searchFor = rec[1].lower()
+        excludeTweetFor = rec[2]
+        excludeTerms = rec[3]
+
         try:
-            twitters=twitter_search.search(q=poi, geocode="51.500,-0.126,15km", rpp=100, page=1)
+            twitters=twitter_search.search(q=searchFor, geocode="51.500,-0.126,15km", rpp=100, page=1)
         except:
             continue
                 
         for page in range(1,6):
             search_results.append(twitters)
-        
-        tweets = [ r['text'] for result in search_results for r in result['results'] ]
+       
+ 
+        tweets = [ r['text'].lower() for result in search_results for r in result['results'] ]
+        created_ats = [ r['created_at'] for result in search_results for r in result['results'] ]
+
+        created_tss = sorted([time.strftime('%Y-%m-%d %H:%M:%S', time.strptime(c,'%a, %d %b %Y %H:%M:%S +0000'))
+                         for c in created_ats ])
+        firstTweet = created_tss[0]
+        lastTweet  = created_tss[len(created_tss)-1]
+
+        totalTweets = len(tweets)
         en_tweets = [ tweet for tweet in tweets if ld.detect(tweet) == 'en' ]
         # only those tweets that have our pio in them
-        poi_tweets = [tweet for tweet in en_tweets if poi in tweet and
+        poi_tweets = [tweet for tweet in en_tweets if searchFor in tweet and
                       not any(regex.match(tweet) for regex in phrase_regexes)]
  
+        if excludeTweetFor:
+            poi_tweets = [line for line in poi_tweets 
+                           if not any(term  in line for term in excludeTweetFor.lower().split('|')) ]
+
         if properties.has_key("dumpfile"):
             dumpfile = open(properties['dumpfile'], 'a')
-            print>>dumpfile, poi, ':'
+            print>>dumpfile, poi, searchFor, ':'
             for t in poi_tweets:
                 print>>dumpfile, '    ', t.encode('utf-8')
             
         
         words = []
         for tweet in poi_tweets:
-            tw = tweet.lower().replace(poi.lower(), '')
-            #t = tw # just until we get the previous line to work
+            tw = tweet.replace(searchFor, '')
             words += [ w for w in tw.split() ]
         
-        #words_culled = [  w for w in words if w.lower() not in nltk.corpus.stopwords.words('english') ]
-        words_culled = [  w for w in words if w.lower() not in stopset ]
-        
+        words_culled = [ w for w in words if w.lower() not in stopset 
+                        and w not in excludeTerms.lower().split('|') ]
+
         freq_dist = nltk.FreqDist(words_culled)
         top_words = [ w for w in freq_dist.keys() if not any(regex.match(w) for regex in word_regexes) ]
         print "POI: " + poi
+        wordFreq = ''
         for k in top_words[:5]:   #freq_dist.keys()[:10]:
-            print "    ",k   #, top_words[:5]  #freq_dist[k]
+            print "    ",k,  freq_dist[k]
+            wordFreq += k + ' (' + str(freq_dist[k]) + '), '
             if properties.has_key("dumpfile"):
                 dumpfile = open(properties['dumpfile'], 'a')
                 print>>dumpfile, '    ', k.encode('utf-8') #, top_words[k] #freq_dist[k]
 
-        cursor.execute("Insert into terms values(?, ?, ?, ?)", (ts, poi, top_words[0], ','.join(top_words[:5])))
+        end = time.time()
+        duration = end-start
+        cursor.execute("Insert into terms values(?, ?, ?, ?, ?, ?, ?, ?, ?)", 
+                       (ts, poi, searchFor, top_words[0], wordFreq, totalTweets, duration, firstTweet, lastTweet))
         connection.commit()
     
     log.info("End processing at " + time.asctime(time.localtime()) )
